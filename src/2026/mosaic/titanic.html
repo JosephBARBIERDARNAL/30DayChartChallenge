@@ -1,0 +1,1762 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Titanic Mosaic</title>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <style>
+      :root {
+        --paper: #efe5d4;
+        --paper-2: #f7f1e6;
+        --ink: #13263b;
+        --card: #0e2134;
+        --card-2: #132b45;
+        --panel: rgba(255, 255, 255, 0.07);
+        --panel-strong: rgba(255, 255, 255, 0.12);
+        --text: #edf3f8;
+        --muted: rgba(237, 243, 248, 0.72);
+        --line: rgba(255, 255, 255, 0.14);
+        --line-strong: rgba(255, 255, 255, 0.24);
+        --female: #ab5f57;
+        --male: #4e7292;
+        --first: #99763d;
+        --second: #5c776b;
+        --third: #5c6980;
+        --survived: #527f59;
+        --died: #8c453d;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(
+            circle at top left,
+            rgba(255, 255, 255, 0.55),
+            transparent 32%
+          ),
+          linear-gradient(180deg, var(--paper-2) 0%, var(--paper) 100%);
+        color: var(--ink);
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      .page {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 28px 0 36px;
+      }
+
+      .header {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+
+      .eyebrow {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(19, 38, 59, 0.68);
+      }
+
+      h1 {
+        margin: 0;
+        font-family:
+          "Iowan Old Style", "Palatino Linotype", "URW Palladio L", serif;
+        font-size: clamp(2rem, 4vw, 3.3rem);
+        line-height: 0.98;
+        letter-spacing: -0.04em;
+      }
+
+      .intro {
+        margin: 0;
+        max-width: 860px;
+        font-size: 1rem;
+        line-height: 1.58;
+        color: rgba(19, 38, 59, 0.82);
+      }
+
+      .card {
+        padding: 18px;
+        border-radius: 28px;
+        background:
+          linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.04),
+            rgba(255, 255, 255, 0)
+          ),
+          linear-gradient(180deg, var(--card-2) 0%, var(--card) 100%);
+        color: var(--text);
+        box-shadow: 0 24px 60px rgba(34, 26, 16, 0.18);
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .meta {
+        min-width: 0;
+        display: grid;
+        gap: 4px;
+      }
+
+      .crumb,
+      .summary,
+      .caption,
+      .panel-copy,
+      .guide-copy,
+      .stat-label,
+      .stat-value {
+        margin: 0;
+      }
+
+      .crumb {
+        font-size: 0.88rem;
+        color: var(--muted);
+      }
+
+      .summary {
+        font-size: 1.02rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+
+      .toolbar-side {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .legend {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+        font-size: 0.86rem;
+        font-weight: 650;
+      }
+
+      .legend-swatch {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+      }
+
+      .legend-swatch.survived {
+        background: var(--survived);
+      }
+
+      .legend-swatch.died {
+        background: var(--died);
+      }
+
+      .ghost-button {
+        appearance: none;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+        border-radius: 999px;
+        padding: 10px 14px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        transition:
+          background 160ms ease,
+          border-color 160ms ease,
+          opacity 160ms ease;
+      }
+
+      .ghost-button:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.09);
+        border-color: rgba(255, 255, 255, 0.28);
+      }
+
+      .ghost-button:disabled {
+        opacity: 0.44;
+        cursor: default;
+      }
+
+      .focus-stack {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+
+      .focus-row {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+      }
+
+      .focus-label {
+        margin: 0;
+        padding-top: 8px;
+        font-size: 0.8rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.58);
+      }
+
+      .filter-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .filter-chip {
+        appearance: none;
+        border: 1px solid var(--line);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent),
+          rgba(255, 255, 255, 0.03);
+        color: var(--text);
+        border-radius: 18px;
+        padding: 10px 12px;
+        min-width: 172px;
+        text-align: left;
+        font: inherit;
+        cursor: pointer;
+        transition:
+          background 160ms ease,
+          border-color 160ms ease,
+          opacity 160ms ease,
+          transform 160ms ease,
+          box-shadow 160ms ease;
+      }
+
+      .filter-chip:hover,
+      .filter-chip:focus-visible {
+        border-color: rgba(255, 255, 255, 0.28);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent),
+          rgba(255, 255, 255, 0.05);
+        transform: translateY(-1px);
+        outline: none;
+      }
+
+      .filter-chip.is-active {
+        border-color: var(--chip-color, rgba(255, 255, 255, 0.38));
+        box-shadow: inset 0 0 0 1px var(--chip-color, transparent);
+      }
+
+      .filter-chip.is-context {
+        opacity: 0.92;
+      }
+
+      .filter-chip.is-dimmed {
+        opacity: 0.34;
+      }
+
+      .filter-chip-top,
+      .filter-chip-meta {
+        display: block;
+      }
+
+      .filter-chip-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 5px;
+      }
+
+      .filter-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--chip-color, var(--text));
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+        flex: 0 0 auto;
+      }
+
+      .filter-chip-title {
+        font-size: 0.97rem;
+        font-weight: 780;
+        letter-spacing: -0.01em;
+      }
+
+      .filter-chip-meta {
+        color: var(--muted);
+        font-size: 0.84rem;
+        line-height: 1.3;
+      }
+
+      .chart-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 292px;
+        gap: 16px;
+        align-items: stretch;
+      }
+
+      .chart-shell {
+        min-width: 0;
+        border-radius: 24px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background:
+          radial-gradient(
+            circle at top right,
+            rgba(255, 255, 255, 0.06),
+            transparent 38%
+          ),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent);
+      }
+
+      .panel {
+        border-radius: 22px;
+        border: 1px solid var(--line);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent),
+          rgba(255, 255, 255, 0.03);
+        padding: 16px;
+        display: grid;
+        gap: 12px;
+        align-content: start;
+      }
+
+      .panel-kicker {
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.56);
+      }
+
+      .panel-title {
+        margin: 0;
+        font-family:
+          "Iowan Old Style", "Palatino Linotype", "URW Palladio L", serif;
+        font-size: 1.75rem;
+        line-height: 0.98;
+        letter-spacing: -0.03em;
+      }
+
+      .panel-copy {
+        color: var(--muted);
+        font-size: 0.96rem;
+        line-height: 1.5;
+      }
+
+      .stats {
+        display: grid;
+        gap: 8px;
+      }
+
+      .stat-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 12px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.04);
+      }
+
+      .stat-label {
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .stat-value {
+        font-size: 0.94rem;
+        font-weight: 750;
+        text-align: right;
+        letter-spacing: -0.01em;
+      }
+
+      .caption {
+        margin-top: 14px;
+        font-size: 0.96rem;
+        line-height: 1.55;
+        color: var(--muted);
+      }
+
+      svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .frame {
+        fill: rgba(255, 255, 255, 0.02);
+        stroke: rgba(255, 255, 255, 0.1);
+        stroke-width: 1px;
+      }
+
+      .sex-outline,
+      .class-outline,
+      .tile {
+        transition:
+          opacity 180ms ease,
+          transform 180ms ease;
+      }
+
+      .sex-outline rect,
+      .class-outline rect,
+      .tile rect,
+      .scope-trigger rect {
+        transition:
+          opacity 180ms ease,
+          fill-opacity 180ms ease,
+          stroke-opacity 180ms ease,
+          stroke-width 180ms ease,
+          filter 180ms ease;
+      }
+
+      .sex-outline rect {
+        fill: rgba(255, 255, 255, 0.015);
+        stroke-width: 2px;
+      }
+
+      .class-outline rect {
+        fill: rgba(255, 255, 255, 0.012);
+        stroke-width: 1.4px;
+      }
+
+      .scope-trigger {
+        cursor: pointer;
+        outline: none;
+      }
+
+      .scope-trigger.is-focused rect,
+      .scope-trigger:hover rect,
+      .tile.is-focused rect,
+      .tile:hover rect {
+        stroke-opacity: 1;
+        stroke-width: 2.4px;
+        filter: brightness(1.08);
+      }
+
+      .scope-trigger.is-dimmed,
+      .sex-outline.is-dimmed,
+      .class-outline.is-dimmed,
+      .tile.is-dimmed {
+        opacity: 0.2;
+      }
+
+      .scope-trigger.is-context,
+      .sex-outline.is-context,
+      .class-outline.is-context,
+      .tile.is-context {
+        opacity: 0.92;
+      }
+
+      .scope-trigger.is-active,
+      .sex-outline.is-active,
+      .class-outline.is-active,
+      .tile.is-active {
+        opacity: 1;
+      }
+
+      .scope-trigger.is-active rect,
+      .tile.is-active rect {
+        stroke-opacity: 1;
+        stroke-width: 3px;
+        filter: brightness(1.08);
+      }
+
+      .tile-label {
+        fill: rgba(255, 255, 255, 0.96);
+        pointer-events: none;
+      }
+
+      .tile-title {
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+      }
+
+      .tile-value {
+        font-size: 12px;
+        font-weight: 700;
+        fill: rgba(255, 255, 255, 0.78);
+      }
+
+      .tile-share {
+        font-size: 11px;
+        font-weight: 700;
+        fill: rgba(255, 255, 255, 0.64);
+      }
+
+      @media (max-width: 980px) {
+        .toolbar {
+          flex-direction: column;
+        }
+
+        .toolbar-side {
+          justify-content: flex-start;
+        }
+
+        .focus-row,
+        .chart-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .focus-label {
+          padding-top: 0;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .page {
+          width: min(100% - 20px, 1180px);
+          padding-top: 18px;
+          padding-bottom: 20px;
+        }
+
+        .card {
+          padding: 14px;
+          border-radius: 22px;
+        }
+
+        .filter-chip,
+        .panel,
+        .chart-shell {
+          border-radius: 18px;
+        }
+
+        .legend-item,
+        .ghost-button {
+          width: 100%;
+          justify-content: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="header">
+        <p class="eyebrow">Titanic survival</p>
+        <h1>Sex, class, then outcome</h1>
+        <p class="intro">
+          The sinking of the Titanic in April 1912 exposed the unequal structure
+          of Edwardian society. Survival varied sharply by sex and passenger
+          class, reflecting differences in status, mobility, and access to
+          lifeboats.
+        </p>
+      </header>
+
+      <section class="card">
+        <div class="toolbar">
+          <div class="meta">
+            <p class="crumb" id="crumb"></p>
+            <p class="summary" id="summary"></p>
+          </div>
+          <div class="toolbar-side">
+            <div class="legend" aria-label="Outcome legend">
+              <span class="legend-item">
+                <span class="legend-swatch survived"></span>
+                Survived
+              </span>
+              <span class="legend-item">
+                <span class="legend-swatch died"></span>
+                Did not survive
+              </span>
+            </div>
+            <button id="reset-button" class="ghost-button" type="button">
+              Reset focus
+            </button>
+          </div>
+        </div>
+
+        <div class="focus-stack">
+          <div class="focus-row">
+            <p class="focus-label">Sex</p>
+            <div
+              id="sex-controls"
+              class="filter-group"
+              aria-label="Sex focus controls"
+            ></div>
+          </div>
+          <div class="focus-row">
+            <p class="focus-label">Class</p>
+            <div
+              id="class-controls"
+              class="filter-group"
+              aria-label="Class focus controls"
+            ></div>
+          </div>
+        </div>
+
+        <div class="chart-grid">
+          <div class="chart-shell">
+            <svg id="chart" role="img"></svg>
+          </div>
+
+          <aside class="panel" aria-live="polite">
+            <div>
+              <p class="panel-kicker" id="detail-kicker"></p>
+              <h2 class="panel-title" id="detail-title"></h2>
+            </div>
+            <p class="panel-copy" id="detail-copy"></p>
+            <div class="stats" id="stats"></div>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const raw = [
+        {
+          Sex: "female",
+          PclassLabel: "1st Class",
+          SurvivedLabel: "Did not survive",
+          count: 3,
+        },
+        {
+          Sex: "female",
+          PclassLabel: "1st Class",
+          SurvivedLabel: "Survived",
+          count: 91,
+        },
+        {
+          Sex: "female",
+          PclassLabel: "2nd Class",
+          SurvivedLabel: "Did not survive",
+          count: 6,
+        },
+        {
+          Sex: "female",
+          PclassLabel: "2nd Class",
+          SurvivedLabel: "Survived",
+          count: 70,
+        },
+        {
+          Sex: "female",
+          PclassLabel: "3rd Class",
+          SurvivedLabel: "Did not survive",
+          count: 72,
+        },
+        {
+          Sex: "female",
+          PclassLabel: "3rd Class",
+          SurvivedLabel: "Survived",
+          count: 72,
+        },
+        {
+          Sex: "male",
+          PclassLabel: "1st Class",
+          SurvivedLabel: "Did not survive",
+          count: 77,
+        },
+        {
+          Sex: "male",
+          PclassLabel: "1st Class",
+          SurvivedLabel: "Survived",
+          count: 45,
+        },
+        {
+          Sex: "male",
+          PclassLabel: "2nd Class",
+          SurvivedLabel: "Did not survive",
+          count: 91,
+        },
+        {
+          Sex: "male",
+          PclassLabel: "2nd Class",
+          SurvivedLabel: "Survived",
+          count: 17,
+        },
+        {
+          Sex: "male",
+          PclassLabel: "3rd Class",
+          SurvivedLabel: "Did not survive",
+          count: 300,
+        },
+        {
+          Sex: "male",
+          PclassLabel: "3rd Class",
+          SurvivedLabel: "Survived",
+          count: 47,
+        },
+      ];
+
+      const sexOrder = ["female", "male"];
+      const classOrder = ["1st Class", "2nd Class", "3rd Class"];
+      const outcomeOrder = ["Survived", "Did not survive"];
+      const sexLabel = {
+        female: "Women",
+        male: "Men",
+      };
+
+      const palette = {
+        female: "var(--female)",
+        male: "var(--male)",
+        "1st Class": "var(--first)",
+        "2nd Class": "var(--second)",
+        "3rd Class": "var(--third)",
+        Survived: "var(--survived)",
+        "Did not survive": "var(--died)",
+      };
+
+      const totalPassengers = d3.sum(raw, (d) => d.count);
+      const totalSurvivors = d3.sum(
+        raw.filter((d) => d.SurvivedLabel === "Survived"),
+        (d) => d.count,
+      );
+
+      const WIDTH = 1120;
+      const HEIGHT = 660;
+      const PADDING = 14;
+      const ROUNDING = 24;
+      const FULL_BOUNDS = {
+        x: PADDING,
+        y: PADDING,
+        width: WIDTH - PADDING * 2,
+        height: HEIGHT - PADDING * 2,
+      };
+
+      const crumbEl = document.getElementById("crumb");
+      const summaryEl = document.getElementById("summary");
+      const detailKickerEl = document.getElementById("detail-kicker");
+      const detailTitleEl = document.getElementById("detail-title");
+      const detailCopyEl = document.getElementById("detail-copy");
+      const statsEl = document.getElementById("stats");
+      const sexControlsEl = document.getElementById("sex-controls");
+      const classControlsEl = document.getElementById("class-controls");
+      const resetButton = document.getElementById("reset-button");
+
+      const svg = d3
+        .select("#chart")
+        .attr("viewBox", `0 0 ${WIDTH} ${HEIGHT}`)
+        .attr("aria-label", "Titanic survival mosaic");
+
+      svg
+        .append("rect")
+        .attr("class", "frame")
+        .attr("x", PADDING)
+        .attr("y", PADDING)
+        .attr("width", WIDTH - PADDING * 2)
+        .attr("height", HEIGHT - PADDING * 2)
+        .attr("rx", 26)
+        .attr("ry", 26);
+
+      const sceneLayer = svg.append("g");
+      const sexOutlineLayer = sceneLayer.append("g");
+      const classOutlineLayer = sceneLayer.append("g");
+      const tileLayer = sceneLayer.append("g");
+
+      const rootNode = buildTree();
+      const layoutStore = buildLayoutStore(rootNode);
+      const focusStore = buildFocusStore(rootNode, layoutStore);
+      const state = {
+        hoveredFocus: null,
+        pinnedFocus: focusStore.root,
+      };
+
+      let sexOutlines = null;
+      let classOutlines = null;
+      let tiles = null;
+      let sexControls = null;
+      let classControls = null;
+
+      function slug(value) {
+        return value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      }
+
+      function formatCount(value) {
+        return `${d3.format(",")(value)} passenger${value === 1 ? "" : "s"}`;
+      }
+
+      function formatPct(value) {
+        return d3.format(".0%")(value);
+      }
+
+      function getShare(value, total) {
+        return total ? value / total : 0;
+      }
+
+      function buildTree() {
+        const root = {
+          id: "root",
+          kind: "root",
+          label: "All passengers",
+          count: totalPassengers,
+          survivedCount: totalSurvivors,
+          children: sexOrder.map((sexKey) => {
+            const sexRows = raw.filter((d) => d.Sex === sexKey);
+            const sexCount = d3.sum(sexRows, (d) => d.count);
+            const sexSurvived = d3.sum(
+              sexRows.filter((d) => d.SurvivedLabel === "Survived"),
+              (d) => d.count,
+            );
+
+            return {
+              id: sexKey,
+              kind: "sex",
+              sexKey,
+              label: sexLabel[sexKey],
+              count: sexCount,
+              survivedCount: sexSurvived,
+              children: classOrder.map((classLabel) => {
+                const classRows = sexRows.filter(
+                  (d) => d.PclassLabel === classLabel,
+                );
+                const classCount = d3.sum(classRows, (d) => d.count);
+                const classSurvived = d3.sum(
+                  classRows.filter((d) => d.SurvivedLabel === "Survived"),
+                  (d) => d.count,
+                );
+
+                return {
+                  id: `${sexKey}-${slug(classLabel)}`,
+                  kind: "class",
+                  classLabel,
+                  label: classLabel,
+                  count: classCount,
+                  survivedCount: classSurvived,
+                  children: outcomeOrder.map((outcome) => {
+                    const count =
+                      classRows.find((d) => d.SurvivedLabel === outcome)
+                        ?.count || 0;
+
+                    return {
+                      id: `${sexKey}-${slug(classLabel)}-${slug(outcome)}`,
+                      kind: "outcome",
+                      outcome,
+                      label: outcome,
+                      count,
+                      survivedCount: outcome === "Survived" ? count : 0,
+                      children: [],
+                    };
+                  }),
+                };
+              }),
+            };
+          }),
+        };
+
+        assignMetadata(root, null, 0);
+        return root;
+      }
+
+      function assignMetadata(node, parent, depth) {
+        node.parent = parent;
+        node.depth = depth;
+        node.color = getColor(node);
+        node.children.forEach((child) =>
+          assignMetadata(child, node, depth + 1),
+        );
+      }
+
+      function getColor(node) {
+        if (node.kind === "sex") return palette[node.sexKey];
+        if (node.kind === "class") return palette[node.classLabel];
+        if (node.kind === "outcome") return palette[node.outcome];
+        return "transparent";
+      }
+
+      function getGap(node) {
+        if (node.kind === "root") return 14;
+        if (node.kind === "sex") return 8;
+        if (node.kind === "class") return 3;
+        return 0;
+      }
+
+      function layoutChildren(node, bounds) {
+        if (!node.children.length) return [];
+
+        const horizontal = node.depth % 2 === 0;
+        const gap = node.children.length > 1 ? getGap(node) : 0;
+        const span = horizontal
+          ? bounds.width - gap * (node.children.length - 1)
+          : bounds.height - gap * (node.children.length - 1);
+
+        let cursor = horizontal ? bounds.x : bounds.y;
+
+        return node.children.map((child) => {
+          const size = span * getShare(child.count, node.count);
+          const layout = horizontal
+            ? {
+                x: cursor,
+                y: bounds.y,
+                width: size,
+                height: bounds.height,
+              }
+            : {
+                x: bounds.x,
+                y: cursor,
+                width: bounds.width,
+                height: size,
+              };
+
+          cursor += size + gap;
+
+          return {
+            node: child,
+            ...layout,
+          };
+        });
+      }
+
+      function buildLayoutStore(root) {
+        const store = {
+          root: { node: root, ...FULL_BOUNDS },
+          sex: [],
+          classes: [],
+          outcomes: [],
+          byId: new Map(),
+        };
+
+        store.byId.set(root.id, store.root);
+        collectLayouts(root, FULL_BOUNDS, store);
+        return store;
+      }
+
+      function collectLayouts(node, bounds, store) {
+        layoutChildren(node, bounds).forEach((layout) => {
+          store.byId.set(layout.node.id, layout);
+
+          if (layout.node.kind === "sex") {
+            store.sex.push(layout);
+          } else if (layout.node.kind === "class") {
+            store.classes.push(layout);
+          } else if (layout.node.kind === "outcome") {
+            store.outcomes.push(layout);
+          }
+
+          if (layout.node.children.length) {
+            collectLayouts(layout.node, layout, store);
+          }
+        });
+      }
+
+      function createNodeFocus(node) {
+        return {
+          id: node.id,
+          type: node.kind,
+          node,
+          label: node.label,
+          count: node.count,
+          survivedCount: node.survivedCount,
+          color: node.kind === "root" ? "transparent" : node.color,
+        };
+      }
+
+      function buildFocusStore(root, layouts) {
+        const sex = sexOrder.map((sexKey) => {
+          const layout = layouts.sex.find(
+            (entry) => entry.node.sexKey === sexKey,
+          );
+          return createNodeFocus(layout.node);
+        });
+
+        const classes = classOrder.map((classLabel) => {
+          const nodes = layouts.classes
+            .filter((entry) => entry.node.classLabel === classLabel)
+            .map((entry) => entry.node);
+
+          return {
+            id: `focus-${slug(classLabel)}`,
+            type: "class-filter",
+            label: classLabel,
+            classLabel,
+            count: d3.sum(nodes, (node) => node.count),
+            survivedCount: d3.sum(nodes, (node) => node.survivedCount),
+            color: palette[classLabel],
+            bySex: nodes.map((node) => ({
+              sexKey: node.parent.sexKey,
+              label: node.parent.label,
+              count: node.count,
+              survivedCount: node.survivedCount,
+            })),
+          };
+        });
+
+        return {
+          root: createNodeFocus(root),
+          sex,
+          classes,
+        };
+      }
+
+      function getPath(node) {
+        const labels = [];
+        let cursor = node;
+
+        while (cursor) {
+          labels.unshift(cursor.label);
+          cursor = cursor.parent;
+        }
+
+        return labels.join(" / ");
+      }
+
+      function getFocusPath(focus) {
+        if (focus.type === "class-filter") {
+          return `All passengers / ${focus.label} across both sexes`;
+        }
+
+        return getPath(focus.node);
+      }
+
+      function getShortFocusPath(focus) {
+        return getFocusPath(focus).replace(/^All passengers \/ /, "");
+      }
+
+      function getActiveFocus() {
+        return state.hoveredFocus || state.pinnedFocus;
+      }
+
+      function getNodeFocus(node) {
+        return createNodeFocus(node);
+      }
+
+      function isSameFocus(a, b) {
+        return Boolean(a && b && a.id === b.id);
+      }
+
+      function isWithin(node, ancestor) {
+        let cursor = node;
+
+        while (cursor) {
+          if (cursor.id === ancestor.id) {
+            return true;
+          }
+
+          cursor = cursor.parent;
+        }
+
+        return false;
+      }
+
+      function isRelatedToFocus(node, focus) {
+        if (focus.type === "root") return true;
+
+        if (focus.type === "class-filter") {
+          if (node.kind === "sex") return true;
+          if (node.kind === "class")
+            return node.classLabel === focus.classLabel;
+          if (node.kind === "outcome") {
+            return node.parent.classLabel === focus.classLabel;
+          }
+          return false;
+        }
+
+        return isWithin(node, focus.node) || isWithin(focus.node, node);
+      }
+
+      function getSexKeyForNode(node) {
+        if (node.kind === "sex") return node.sexKey;
+        if (node.kind === "class") return node.parent.sexKey;
+        if (node.kind === "outcome") return node.parent.parent.sexKey;
+        return null;
+      }
+
+      function getClassLabelForNode(node) {
+        if (node.kind === "class") return node.classLabel;
+        if (node.kind === "outcome") return node.parent.classLabel;
+        return null;
+      }
+
+      function getTooltip(node) {
+        const parts = [
+          getPath(node).replace(/^All passengers \/ /, ""),
+          formatCount(node.count),
+          `${formatPct(getShare(node.count, totalPassengers))} of all passengers`,
+        ];
+
+        if (node.kind === "outcome") {
+          parts.push(
+            `${formatPct(getShare(node.count, node.parent.count))} of ${node.parent.label}`,
+          );
+        } else {
+          parts.push(
+            `${formatPct(getShare(node.survivedCount, node.count))} survived`,
+          );
+        }
+
+        return parts.join(" | ");
+      }
+
+      function getFocusAriaLabel(focus) {
+        if (focus.type === "class-filter") {
+          return `${focus.label} across both sexes. ${formatCount(focus.count)}. ${formatPct(getShare(focus.survivedCount, focus.count))} survived. Press Enter or Space to pin this focus in the panel.`;
+        }
+
+        if (focus.type === "root") {
+          return `${focus.label}. ${formatCount(focus.count)}. ${formatPct(getShare(focus.survivedCount, focus.count))} survived.`;
+        }
+
+        return `${getTooltip(focus.node)}. Press Enter or Space to pin this focus in the panel.`;
+      }
+
+      function getCrumb(focus) {
+        if (focus.type === "root") return "Full contingency table";
+        return `Focus: ${getShortFocusPath(focus)}`;
+      }
+
+      function getSummary(focus) {
+        if (focus.type === "class-filter") {
+          return `${formatCount(focus.count)} • ${formatPct(getShare(focus.survivedCount, focus.count))} survived`;
+        }
+
+        if (focus.node.kind === "outcome") {
+          return `${formatCount(focus.count)} • ${formatPct(getShare(focus.count, focus.node.parent.count))} of ${focus.node.parent.parent.label} / ${focus.node.parent.label}`;
+        }
+
+        return `${formatCount(focus.count)} • ${formatPct(getShare(focus.survivedCount, focus.count))} survived`;
+      }
+
+      function getDetailKicker(focus) {
+        if (focus.type === "root") return "Overview";
+        if (focus.type === "sex") return "Sex split";
+        if (focus.type === "class-filter") return "Class across both sexes";
+        if (focus.type === "class") {
+          return `${focus.node.parent.label} • class band`;
+        }
+        return `${focus.node.parent.parent.label} • ${focus.node.parent.label}`;
+      }
+
+      function getDetailTitle(focus) {
+        return focus.type === "root" ? focus.label : getShortFocusPath(focus);
+      }
+
+      function getLargestChild(node) {
+        return node.children.reduce((largest, child) =>
+          !largest || child.count > largest.count ? child : largest,
+        );
+      }
+
+      function getDetailCopy(focus) {
+        if (focus.type === "root") {
+          return "";
+        }
+
+        if (focus.type === "sex") {
+          return `${focus.label} define the width of this half of the mosaic. The button above now carries the label and color cue, so the chart itself can stay dedicated to area comparison and the outcome split.`;
+        }
+
+        if (focus.type === "class-filter") {
+          return `${focus.label} is now encoded concretely above the chart as a color-coded class control. In the mosaic itself, you can compare the ${focus.label.toLowerCase()} bands across women and men without extra text overlapping the tiles.`;
+        }
+
+        if (focus.type === "class") {
+          return `${focus.label} sits inside ${focus.node.parent.label}. Its height is proportional within that sex, while the red/green split shows the survival balance for this exact subgroup.`;
+        }
+
+        return `This tile is the most specific combination in the chart. Its area is the exact passenger count for ${focus.node.parent.parent.label} in ${focus.node.parent.label} who ${focus.label.toLowerCase()}.`;
+      }
+
+      function getStatRows(focus) {
+        if (focus.type === "root") {
+          const largestSex = getLargestChild(focus.node);
+          return [
+            {
+              label: "Passengers",
+              value: formatCount(focus.count),
+            },
+            {
+              label: "Survived",
+              value: `${formatCount(focus.survivedCount)} (${formatPct(getShare(focus.survivedCount, focus.count))})`,
+            },
+            {
+              label: "Did not survive",
+              value: `${formatCount(focus.count - focus.survivedCount)} (${formatPct(getShare(focus.count - focus.survivedCount, focus.count))})`,
+            },
+            {
+              label: "Largest sex block",
+              value: `${largestSex.label} (${formatPct(getShare(largestSex.count, focus.count))})`,
+            },
+          ];
+        }
+
+        if (focus.type === "sex") {
+          const largestClass = getLargestChild(focus.node);
+          return [
+            {
+              label: "Share of total",
+              value: formatPct(getShare(focus.count, totalPassengers)),
+            },
+            {
+              label: "Survival rate",
+              value: formatPct(getShare(focus.survivedCount, focus.count)),
+            },
+            {
+              label: "Largest class band",
+              value: `${largestClass.label} (${formatPct(getShare(largestClass.count, focus.count))})`,
+            },
+            {
+              label: "Passengers",
+              value: formatCount(focus.count),
+            },
+          ];
+        }
+
+        if (focus.type === "class-filter") {
+          const largestSex = focus.bySex.reduce((largest, current) =>
+            !largest || current.count > largest.count ? current : largest,
+          );
+
+          return [
+            {
+              label: "Share of total",
+              value: formatPct(getShare(focus.count, totalPassengers)),
+            },
+            {
+              label: "Survival rate",
+              value: formatPct(getShare(focus.survivedCount, focus.count)),
+            },
+            {
+              label: "Largest sex slice",
+              value: `${largestSex.label} (${formatPct(getShare(largestSex.count, focus.count))})`,
+            },
+            {
+              label: "Passengers",
+              value: formatCount(focus.count),
+            },
+          ];
+        }
+
+        if (focus.type === "class") {
+          return [
+            {
+              label: "Share of total",
+              value: formatPct(getShare(focus.count, totalPassengers)),
+            },
+            {
+              label: `Share of ${focus.node.parent.label}`,
+              value: formatPct(getShare(focus.count, focus.node.parent.count)),
+            },
+            {
+              label: "Survival rate",
+              value: formatPct(getShare(focus.survivedCount, focus.count)),
+            },
+            {
+              label: "Passengers",
+              value: formatCount(focus.count),
+            },
+          ];
+        }
+
+        return [
+          {
+            label: "Share of total",
+            value: formatPct(getShare(focus.count, totalPassengers)),
+          },
+          {
+            label: `Share of ${focus.node.parent.label}`,
+            value: formatPct(getShare(focus.count, focus.node.parent.count)),
+          },
+          {
+            label: `Share of ${focus.node.parent.parent.label}`,
+            value: formatPct(
+              getShare(focus.count, focus.node.parent.parent.count),
+            ),
+          },
+          {
+            label: "Passengers",
+            value: formatCount(focus.count),
+          },
+        ];
+      }
+
+      function renderSexOutlines() {
+        sexOutlines = sexOutlineLayer
+          .selectAll("g.sex-outline")
+          .data(layoutStore.sex, (d) => d.node.id)
+          .join("g")
+          .attr("class", "sex-outline")
+          .attr("transform", (d) => `translate(${d.x},${d.y})`);
+
+        sexOutlines
+          .append("rect")
+          .attr("width", (d) => d.width)
+          .attr("height", (d) => d.height)
+          .attr("rx", ROUNDING)
+          .attr("ry", ROUNDING)
+          .attr("fill", "rgba(255, 255, 255, 0.015)")
+          .attr("stroke", (d) => palette[d.node.sexKey])
+          .attr("stroke-opacity", 0.62);
+      }
+
+      function renderClassOutlines() {
+        classOutlines = classOutlineLayer
+          .selectAll("g.class-outline")
+          .data(layoutStore.classes, (d) => d.node.id)
+          .join("g")
+          .attr("class", "class-outline")
+          .attr("transform", (d) => `translate(${d.x},${d.y})`);
+
+        classOutlines
+          .append("rect")
+          .attr("width", (d) => d.width)
+          .attr("height", (d) => d.height)
+          .attr("rx", 18)
+          .attr("ry", 18)
+          .attr("fill", "rgba(255, 255, 255, 0.012)")
+          .attr("stroke", (d) => palette[d.node.classLabel])
+          .attr("stroke-opacity", 0.46);
+      }
+
+      function getFilterMeta(focus) {
+        return `${d3.format(",")(focus.count)} passengers • ${formatPct(getShare(focus.survivedCount, focus.count))} survived`;
+      }
+
+      function renderFilterControls() {
+        sexControls = d3
+          .select(sexControlsEl)
+          .selectAll("button.filter-chip")
+          .data(focusStore.sex, (d) => d.id)
+          .join("button")
+          .attr("type", "button")
+          .attr("class", "filter-chip")
+          .style("--chip-color", (d) => d.color)
+          .attr("aria-label", (d) => getFocusAriaLabel(d))
+          .html(
+            (d) => `
+              <span class="filter-chip-top">
+                <span class="filter-dot"></span>
+                <span class="filter-chip-title">${d.label}</span>
+              </span>
+              <span class="filter-chip-meta">${getFilterMeta(d)}</span>
+            `,
+          );
+
+        classControls = d3
+          .select(classControlsEl)
+          .selectAll("button.filter-chip")
+          .data(focusStore.classes, (d) => d.id)
+          .join("button")
+          .attr("type", "button")
+          .attr("class", "filter-chip")
+          .style("--chip-color", (d) => d.color)
+          .attr("aria-label", (d) => getFocusAriaLabel(d))
+          .html(
+            (d) => `
+              <span class="filter-chip-top">
+                <span class="filter-dot"></span>
+                <span class="filter-chip-title">${d.label}</span>
+              </span>
+              <span class="filter-chip-meta">${getFilterMeta(d)}</span>
+            `,
+          );
+      }
+
+      function getTileLabelLines(layout) {
+        if (layout.width < 80 || layout.height < 44) return [];
+
+        const lines = [
+          {
+            className: "tile-title",
+            text: layout.node.label,
+          },
+        ];
+
+        if (layout.width >= 96 && layout.height >= 66) {
+          lines.push({
+            className: "tile-value",
+            text: formatCount(layout.node.count),
+          });
+        }
+
+        if (layout.width >= 146 && layout.height >= 88) {
+          lines.push({
+            className: "tile-share",
+            text: `${formatPct(getShare(layout.node.count, layout.node.parent.count))} of class`,
+          });
+        }
+
+        return lines;
+      }
+
+      function renderTiles() {
+        tiles = tileLayer
+          .selectAll("g.tile")
+          .data(layoutStore.outcomes, (d) => d.node.id)
+          .join("g")
+          .attr("class", "tile scope-trigger")
+          .attr("transform", (d) => `translate(${d.x},${d.y})`)
+          .attr("tabindex", 0)
+          .attr("role", "button")
+          .attr("aria-label", (d) => getFocusAriaLabel(getNodeFocus(d.node)));
+
+        tiles
+          .append("rect")
+          .attr("width", (d) => d.width)
+          .attr("height", (d) => d.height)
+          .attr("rx", 14)
+          .attr("ry", 14)
+          .attr("fill", (d) => palette[d.node.outcome])
+          .attr("fill-opacity", 0.96)
+          .attr("stroke", "rgba(255, 255, 255, 0.26)")
+          .attr("stroke-opacity", 0.75)
+          .attr("stroke-width", 1.4);
+
+        tiles.append("title").text((d) => getTooltip(d.node));
+
+        tiles.each(function (d) {
+          const labelLines = getTileLabelLines(d);
+
+          if (!labelLines.length) return;
+
+          const label = d3
+            .select(this)
+            .append("text")
+            .attr("class", "tile-label")
+            .attr("x", 14)
+            .attr("y", 20);
+
+          labelLines.forEach((line, index) => {
+            label
+              .append("tspan")
+              .attr("class", line.className)
+              .attr("x", 14)
+              .attr(
+                "dy",
+                index === 0 ? 0 : line.className === "tile-value" ? 19 : 16,
+              )
+              .text(line.text);
+          });
+        });
+      }
+
+      function getSelectionFromFocus(focus) {
+        if (focus.type === "sex") {
+          return {
+            sexKey: focus.node.sexKey,
+            classLabel: null,
+          };
+        }
+
+        if (focus.type === "class-filter") {
+          return {
+            sexKey: null,
+            classLabel: focus.classLabel,
+          };
+        }
+
+        if (focus.type === "class") {
+          return {
+            sexKey: focus.node.parent.sexKey,
+            classLabel: focus.node.classLabel,
+          };
+        }
+
+        if (focus.type === "outcome") {
+          return {
+            sexKey: focus.node.parent.parent.sexKey,
+            classLabel: focus.node.parent.classLabel,
+          };
+        }
+
+        return {
+          sexKey: null,
+          classLabel: null,
+        };
+      }
+
+      function getFocusFromSelection(selection) {
+        if (selection.sexKey && selection.classLabel) {
+          const classLayout = layoutStore.classes.find(
+            (entry) =>
+              entry.node.parent.sexKey === selection.sexKey &&
+              entry.node.classLabel === selection.classLabel,
+          );
+
+          return createNodeFocus(classLayout.node);
+        }
+
+        if (selection.sexKey) {
+          return focusStore.sex.find(
+            (focus) => focus.node.sexKey === selection.sexKey,
+          );
+        }
+
+        if (selection.classLabel) {
+          return focusStore.classes.find(
+            (focus) => focus.classLabel === selection.classLabel,
+          );
+        }
+
+        return focusStore.root;
+      }
+
+      function getControlResultFocus(controlFocus, baseFocus) {
+        const selection = getSelectionFromFocus(baseFocus);
+
+        if (controlFocus.type === "sex") {
+          selection.sexKey =
+            selection.sexKey === controlFocus.node.sexKey
+              ? null
+              : controlFocus.node.sexKey;
+        } else if (controlFocus.type === "class-filter") {
+          selection.classLabel =
+            selection.classLabel === controlFocus.classLabel
+              ? null
+              : controlFocus.classLabel;
+        }
+
+        return getFocusFromSelection(selection);
+      }
+
+      function bindControlEvents(selection) {
+        selection
+          .on("mouseenter", (_, d) => {
+            state.hoveredFocus = getControlResultFocus(d, state.pinnedFocus);
+            updateUI();
+          })
+          .on("mouseleave", () => {
+            state.hoveredFocus = null;
+            updateUI();
+          })
+          .on("focus", function (_, d) {
+            if (this.tagName.toLowerCase() !== "button") {
+              d3.select(this).classed("is-focused", true);
+            }
+
+            state.hoveredFocus = getControlResultFocus(d, state.pinnedFocus);
+            updateUI();
+          })
+          .on("blur", function () {
+            if (this.tagName.toLowerCase() !== "button") {
+              d3.select(this).classed("is-focused", false);
+            }
+
+            state.hoveredFocus = null;
+            updateUI();
+          })
+          .on("click", (_, d) => {
+            state.pinnedFocus = getControlResultFocus(d, state.pinnedFocus);
+            updateUI();
+          })
+          .on("keydown", function (event, d) {
+            if (this.tagName.toLowerCase() === "button") return;
+            if (event.key !== "Enter" && event.key !== " ") return;
+
+            event.preventDefault();
+            state.pinnedFocus = getControlResultFocus(d, state.pinnedFocus);
+            updateUI();
+          });
+      }
+
+      function bindTileEvents(selection, focusAccessor) {
+        selection
+          .on("mouseenter", (_, d) => {
+            state.hoveredFocus = focusAccessor(d);
+            updateUI();
+          })
+          .on("mouseleave", () => {
+            state.hoveredFocus = null;
+            updateUI();
+          })
+          .on("focus", function (_, d) {
+            d3.select(this).classed("is-focused", true);
+            state.hoveredFocus = focusAccessor(d);
+            updateUI();
+          })
+          .on("blur", function () {
+            d3.select(this).classed("is-focused", false);
+            state.hoveredFocus = null;
+            updateUI();
+          })
+          .on("click", (_, d) => {
+            const focus = focusAccessor(d);
+            state.pinnedFocus = isSameFocus(state.pinnedFocus, focus)
+              ? focusStore.root
+              : focus;
+            updateUI();
+          })
+          .on("keydown", function (event, d) {
+            if (event.key !== "Enter" && event.key !== " ") return;
+
+            event.preventDefault();
+            const focus = focusAccessor(d);
+            state.pinnedFocus = isSameFocus(state.pinnedFocus, focus)
+              ? focusStore.root
+              : focus;
+            updateUI();
+          });
+      }
+
+      function updateStats(rows) {
+        const statRows = statsEl.querySelectorAll(".stat-row");
+
+        statRows.forEach((row) => row.remove());
+
+        rows.forEach((row) => {
+          const statRow = document.createElement("div");
+          statRow.className = "stat-row";
+
+          const label = document.createElement("p");
+          label.className = "stat-label";
+          label.textContent = row.label;
+
+          const value = document.createElement("p");
+          value.className = "stat-value";
+          value.textContent = row.value;
+
+          statRow.append(label, value);
+          statsEl.append(statRow);
+        });
+      }
+
+      function updatePanel(focus) {
+        detailKickerEl.textContent = getDetailKicker(focus);
+        detailTitleEl.textContent = getDetailTitle(focus);
+        detailCopyEl.textContent = getDetailCopy(focus);
+        updateStats(getStatRows(focus));
+      }
+
+      function getScopeStatus(node, focus) {
+        if (focus.type === "root") return "";
+
+        if (focus.type === "class-filter") {
+          if (node.kind === "class" && node.classLabel === focus.classLabel) {
+            return "active";
+          }
+
+          if (
+            node.kind === "outcome" &&
+            node.parent.classLabel === focus.classLabel
+          ) {
+            return "context";
+          }
+
+          if (node.kind === "sex") {
+            return "context";
+          }
+
+          return "dimmed";
+        }
+
+        if (node.id === focus.node.id) {
+          return "active";
+        }
+
+        return isRelatedToFocus(node, focus) ? "context" : "dimmed";
+      }
+
+      function applyScopeClasses(selection, accessor, focus) {
+        selection
+          .classed(
+            "is-active",
+            (d) => getScopeStatus(accessor(d), focus) === "active",
+          )
+          .classed(
+            "is-context",
+            (d) => getScopeStatus(accessor(d), focus) === "context",
+          )
+          .classed(
+            "is-dimmed",
+            (d) => getScopeStatus(accessor(d), focus) === "dimmed",
+          );
+      }
+
+      function getControlStatus(controlFocus, activeFocus) {
+        if (activeFocus.type === "root") return "";
+
+        if (controlFocus.type === "sex") {
+          if (activeFocus.type === "class-filter") {
+            return "context";
+          }
+
+          const activeSexKey = getSexKeyForNode(activeFocus.node);
+          return activeSexKey === controlFocus.node.sexKey
+            ? "active"
+            : "dimmed";
+        }
+
+        if (controlFocus.type === "class-filter") {
+          if (activeFocus.type === "class-filter") {
+            return activeFocus.classLabel === controlFocus.classLabel
+              ? "active"
+              : "dimmed";
+          }
+
+          if (activeFocus.type === "sex") {
+            return "context";
+          }
+
+          const activeClassLabel = getClassLabelForNode(activeFocus.node);
+          if (!activeClassLabel) return "";
+
+          return activeClassLabel === controlFocus.classLabel
+            ? "active"
+            : "dimmed";
+        }
+
+        return "";
+      }
+
+      function applyControlClasses(selection, activeFocus) {
+        selection
+          .classed(
+            "is-active",
+            (d) => getControlStatus(d, activeFocus) === "active",
+          )
+          .classed(
+            "is-context",
+            (d) => getControlStatus(d, activeFocus) === "context",
+          )
+          .classed(
+            "is-dimmed",
+            (d) => getControlStatus(d, activeFocus) === "dimmed",
+          );
+      }
+
+      function updateUI() {
+        const activeFocus = getActiveFocus();
+
+        crumbEl.textContent = "";
+        summaryEl.textContent = getSummary(activeFocus);
+        updatePanel(activeFocus);
+        resetButton.disabled = state.pinnedFocus.type === "root";
+
+        svg.attr(
+          "aria-label",
+          `Titanic survival mosaic. ${getFocusPath(activeFocus)}.`,
+        );
+
+        applyScopeClasses(sexOutlines, (d) => d.node, activeFocus);
+        applyScopeClasses(classOutlines, (d) => d.node, activeFocus);
+        applyScopeClasses(tiles, (d) => d.node, activeFocus);
+        applyControlClasses(sexControls, activeFocus);
+        applyControlClasses(classControls, activeFocus);
+      }
+
+      renderSexOutlines();
+      renderClassOutlines();
+      renderTiles();
+      renderFilterControls();
+
+      bindControlEvents(sexControls);
+      bindControlEvents(classControls);
+      bindTileEvents(tiles, (d) => getNodeFocus(d.node));
+
+      resetButton.addEventListener("click", () => {
+        state.hoveredFocus = null;
+        state.pinnedFocus = focusStore.root;
+        updateUI();
+      });
+
+      updateUI();
+    </script>
+  </body>
+</html>
