@@ -1,3 +1,8 @@
+> [!TIP]
+> Most of those charts are made with Matplotlib. If you want to learn how to make this kind of charts, check out [Matplotlib Journey](https://www.matplotlib-journey.com/).
+
+<br>
+
 # 30DayChartChallenge
 
 My charts for the 30DayChartChallenge edition 2026!
