@@ -35,3 +35,11 @@ This chart is interactive! [View it online](https://josephbarbierdarnal.github.i
 ## 4 - Slope
 
 ![](./src/2026/slope/chart.png)
+
+<br>
+
+## 5 - Experimental
+
+skipped
+
+<br>
