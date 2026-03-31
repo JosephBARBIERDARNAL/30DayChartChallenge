@@ -1,4 +1,6 @@
 import geopandas as gpd
+import numpy as np
+from matplotlib.colors import Normalize
 import matplotlib.pyplot as plt
 import polars as pl
 from pypalettes import load_cmap
@@ -29,7 +31,6 @@ EUROPEAN_COUNTRIES = [
     "Iceland",
     "Ireland",
     "Italy",
-    "Kazakhstan",
     "Kosovo",
     "Latvia",
     "Liechtenstein",
@@ -90,17 +91,19 @@ df["centroid"] = df_projected["centroid"].to_crs(df.crs)
 
 
 adjustments = {
-    "France": (10, 3),
+    "France": (10, 3.5),
     "Italy": (-2.4, 2.5),
-    "Finland": (0, -2),
-    "Belarus": (0, -0.4),
+    "Finland": (0, -1.5),
+    "Belarus": (0, 0),
+    "Ukraine": (0, 1),
+    "Turkiye": (0, 0.5),
     "Ireland": (0, -1),
     "Germany": (-0.2, 0),
     "Poland": (0, 0.2),
     "Sweden": (-1.2, -2.8),
     "United Kingdom": (1, -1),
     "Norway": (-4, -5.5),
-    "Russian Federation": (-30, -5.5),
+    "Russian Federation": (-53, -9),
 }
 countries_to_annotate = [
     "France",
@@ -109,7 +112,6 @@ countries_to_annotate = [
     "Finland",
     "Spain",
     "Germany",
-    "Kazakhstan",
     "Sweden",
     "Ukraine",
     "United Kingdom",
@@ -117,8 +119,9 @@ countries_to_annotate = [
     "Turkiye",
 ]
 
-cmap = load_cmap("Taurus1", cmap_type="continuous", reverse=True)
-set_default_font(load_google_font("Arvo"))
+cmap = load_cmap("Earth", cmap_type="continuous", reverse=False)
+cmap = load_cmap("Fall", cmap_type="continuous", reverse=True)
+set_default_font(load_google_font("Fira Sans"))
 
 fig, ax = plt.subplots(figsize=(10, 7))
 fig.set_facecolor("#f8f9fa")
@@ -132,12 +135,11 @@ df.plot(
     edgecolor="black",
     linewidth=0.5,
 )
-ax.set_xlim(-30, 90)
+ax.set_xlim(-30, 50)
 ax.set_ylim(30, 83)
-# ax.axis("off")
+ax.axis("off")
 
 for country in countries_to_annotate:
-    print(country)
     centroid = df.loc[df["country"] == country, "centroid"].values[0]
     x, y = centroid.coords[0]
     try:
@@ -148,7 +150,7 @@ for country in countries_to_annotate:
     value = df.loc[df["country"] == country, "OBS_VALUE"].values[0]
     if country == "United Kingdom":
         country = "UK"
-    if value >= 70:
+    if value <= 70:
         color = "black"
     else:
         color = "white"
@@ -156,4 +158,39 @@ for country in countries_to_annotate:
     ax.text(x=x, y=y, s=f"{country.upper()}", **params)  # ty: ignore
     ax.text(x=x, y=y - 1.2, s=f"{value:.1f}", weight="bold", **params)  # ty: ignore
 
-plt.savefig("src/2026/reporters-without-borders/chart.png", dpi=200)
+values = df["OBS_VALUE"].dropna()
+bins = [0, 20, 40, 60, 80, 100]
+n_bins = 6
+norm = Normalize(vmin=values.min(), vmax=values.max())
+legend_x = -25
+legend_y_start = 40
+legend_y_step = 3
+
+for i in range(n_bins):
+    bin = bins[i]
+    color = cmap(norm(bin))
+    ax.add_patch(
+        plt.Rectangle(
+            (legend_x, legend_y_start + i * legend_y_step),
+            4,
+            3,
+            color=color,
+            ec="black",
+            lw=0.6,
+        )
+    )
+    ax.text(
+        legend_x + 5,
+        legend_y_start + i * legend_y_step + 1,
+        f"{bin:.0f}",
+        fontsize=10,
+        va="center",
+    )
+
+fig.text(0.25, 0.75, "Press Freedom Index", size=20, weight="bold")
+
+plt.savefig(
+    "src/2026/reporters-without-borders/chart.png",
+    dpi=200,
+    bbox_inches="tight",
+)
